@@ -81,6 +81,9 @@ public final class L {
         EN.put("导出失败：", "Export failed: ");
         EN.put("通用", "General");
         EN.put("偏好设置", "Preferences");
+        EN.put("固件 MD5 校验", "Firmware MD5 check");
+        EN.put("导入时校验 APPSLIST.MD5", "Verify APPSLIST.MD5 on import");
+        EN.put("已关闭固件 MD5 校验", "Firmware MD5 check off");
         EN.put("默认自动开启键盘", "Auto-open keyboard");
         EN.put("启动应用时自动展开键盘", "Automatically show keyboard on launch");
         EN.put("跳过开屏动画", "Skip splash screen");
@@ -267,6 +270,9 @@ public final class L {
         FR.put("导出失败：", "Échec de l’export : ");
         FR.put("通用", "Général");
         FR.put("偏好设置", "Préférences");
+        FR.put("固件 MD5 校验", "Vérification MD5 du firmware");
+        FR.put("导入时校验 APPSLIST.MD5", "Vérifier APPSLIST.MD5 à l'import");
+        FR.put("已关闭固件 MD5 校验", "Vérification MD5 désactivée");
         FR.put("默认自动开启键盘", "Ouvrir le clavier automatiquement");
         FR.put("启动应用时自动展开键盘", "Afficher automatiquement le clavier au lancement");
         FR.put("跳过开屏动画", "Passer l'écran d'accueil");

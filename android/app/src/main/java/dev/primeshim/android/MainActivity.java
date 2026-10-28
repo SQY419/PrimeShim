@@ -2002,6 +2002,21 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
                 settings().edit().putBoolean("haptic", checked).apply();
             });
             pref.addView(hapticRow.view);
+            pref.addView(divider());
+
+            final MaterialSwitch md5 = new MaterialSwitch(this);
+            md5.setChecked(settings().getBoolean("firmwareMd5", true));
+            SettingsRow md5Row = settingsRowView(L.t("固件 MD5 校验"),
+                    L.t("导入时校验 APPSLIST.MD5"), md5::toggle, md5);
+            md5.setOnCheckedChangeListener((button, checked) -> {
+                settings().edit().putBoolean("firmwareMd5", checked).apply();
+                if (md5Row.supporting != null) {
+                    md5Row.supporting.setText(checked
+                            ? L.t("导入时校验 APPSLIST.MD5")
+                            : L.t("已关闭固件 MD5 校验"));
+                }
+            });
+            pref.addView(md5Row.view);
             box.addView(prefCard, cardParams());
 
             box.addView(sectionCaption(L.t("数据")));
@@ -3192,10 +3207,17 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         if (result.files == 0) {
             throw new IOException(L.t("PRIME_APP.DAT 里的 A: 盘是空的"));
         }
-        if (result.manifestFiles > 0 && result.manifestMismatches > 0) {
+        if (settings().getBoolean("firmwareMd5", true)
+                && result.manifestFiles > 0 && result.manifestMismatches > 0) {
             throw new IOException(L.t("A: 盘校验失败：")
                     + result.manifestMismatches + "/" + result.manifestFiles
                     + L.t(" 个文件与 APPSLIST.MD5 不一致"));
+        }
+        if (!settings().getBoolean("firmwareMd5", true)
+                && result.manifestFiles > 0 && result.manifestMismatches > 0) {
+            Log.i(TAG, "firmware MD5 check disabled; accepting "
+                    + result.manifestMismatches + "/" + result.manifestFiles
+                    + " mismatches");
         }
 
         File targetA = new File(dataRoot, "A");
