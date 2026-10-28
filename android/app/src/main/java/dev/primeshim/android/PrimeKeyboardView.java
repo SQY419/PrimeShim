@@ -11,6 +11,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.RectF;
 import android.util.Log;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -79,6 +80,7 @@ public final class PrimeKeyboardView extends View {
     private String keyEcho = null;
     /** Whether the "name 0xNN" line is drawn after a press (debug aid). */
     private boolean keyEchoEnabled = false;
+    private boolean hapticFeedbackEnabled = false;
     private String pressedName;
     private float lastScale;
     /** Red frame, magenta dots, pressed label: development aids, off by default. */
@@ -438,6 +440,12 @@ public final class PrimeKeyboardView extends View {
 
     public boolean isKeyEchoEnabled() { return keyEchoEnabled; }
 
+    public void setHapticFeedbackEnabled(boolean enabled) {
+        hapticFeedbackEnabled = enabled;
+    }
+
+    public boolean isHapticFeedbackEnabled() { return hapticFeedbackEnabled; }
+
     public int keyCount() { return keys.size(); }
     public String keyNameAt(int index) { return keys.get(index).name; }
     public int keyCodeAt(int index) { return keys.get(index).code; }
@@ -477,6 +485,10 @@ public final class PrimeKeyboardView extends View {
                     if (keyEchoEnabled) keyEcho = k.name + "  0x" + Integer.toHexString(wireCode(pressedCode)).toUpperCase();
                     invalidate();
                     PrimeShim.nativeKeyBatch(wireCode(pressedCode), 1);
+                    if (hapticFeedbackEnabled) {
+                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP,
+                                HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    }
                 }
                 return true;
             }

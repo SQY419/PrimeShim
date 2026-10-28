@@ -324,6 +324,7 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
 
         keyboardView = new PrimeKeyboardView(this);
         keyboardView.setVisibility(View.GONE);
+        keyboardView.setHapticFeedbackEnabled(settings().getBoolean("haptic", false));
         int keyboardHeight = (int) (getResources().getDisplayMetrics().heightPixels * 0.52f);
         root.addView(keyboardView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -441,12 +442,18 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
             });
         }
 
-        if (!getIntent().getBooleanExtra(EXTRA_SKIP_SPLASH, false)) {
+        boolean skipSplash = getIntent().getBooleanExtra(EXTRA_SKIP_SPLASH, false)
+                || settings().getBoolean("skipSplash", false);
+        if (!skipSplash) {
             menuButton.setVisibility(View.GONE);
             splash = new SplashView(this);
             splash.setOnFinished(() -> {
                 splash = null;
                 menuButton.setVisibility(View.VISIBLE);
+                if (settings().getBoolean("autoKeyboard", false)
+                        && keyboardView.getVisibility() != View.VISIBLE) {
+                    toggleKeyboard();
+                }
             });
             root.addView(splash, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -454,6 +461,13 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         } else {
             splash = null;
             menuButton.setVisibility(View.VISIBLE);
+            if (settings().getBoolean("autoKeyboard", false)) {
+                root.post(() -> {
+                    if (keyboardView.getVisibility() != View.VISIBLE) {
+                        toggleKeyboard();
+                    }
+                });
+            }
         }
 
         prepareProfile();
@@ -1830,6 +1844,41 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
             general.addView(settingsRowView(L.t("调试"), L.t("追踪与日志"),
                     () -> showSettingsPage(2)).view);
             box.addView(generalCard, cardParams());
+
+            box.addView(sectionCaption(L.t("偏好设置")));
+            MaterialCardView prefCard = filledCard();
+            LinearLayout pref = cardColumn(prefCard);
+
+            final MaterialSwitch autoKbd = new MaterialSwitch(this);
+            autoKbd.setChecked(settings().getBoolean("autoKeyboard", false));
+            SettingsRow autoKbdRow = settingsRowView(L.t("默认自动开启键盘"),
+                    L.t("启动应用时自动展开键盘"), autoKbd::toggle, autoKbd);
+            autoKbd.setOnCheckedChangeListener((button, checked) -> {
+                settings().edit().putBoolean("autoKeyboard", checked).apply();
+            });
+            pref.addView(autoKbdRow.view);
+            pref.addView(divider());
+
+            final MaterialSwitch skipSplash = new MaterialSwitch(this);
+            skipSplash.setChecked(settings().getBoolean("skipSplash", false));
+            SettingsRow skipSplashRow = settingsRowView(L.t("跳过开屏动画"),
+                    L.t("启动应用时直接进入计算器"), skipSplash::toggle, skipSplash);
+            skipSplash.setOnCheckedChangeListener((button, checked) -> {
+                settings().edit().putBoolean("skipSplash", checked).apply();
+            });
+            pref.addView(skipSplashRow.view);
+            pref.addView(divider());
+
+            final MaterialSwitch haptic = new MaterialSwitch(this);
+            haptic.setChecked(settings().getBoolean("haptic", false));
+            SettingsRow hapticRow = settingsRowView(L.t("按键震动反馈"),
+                    L.t("按键点击时触发震动反馈"), haptic::toggle, haptic);
+            haptic.setOnCheckedChangeListener((button, checked) -> {
+                keyboardView.setHapticFeedbackEnabled(checked);
+                settings().edit().putBoolean("haptic", checked).apply();
+            });
+            pref.addView(hapticRow.view);
+            box.addView(prefCard, cardParams());
 
             box.addView(sectionCaption(L.t("数据")));
             MaterialCardView dataCard = filledCard();
@@ -3650,6 +3699,7 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         traceEnabled = settings().getBoolean("trace", false);
         keyboardView.setKeyEchoEnabled(settings().getBoolean("keyEcho", false));
         keyboardView.setDebugOverlay(settings().getBoolean("overlay", false));
+        keyboardView.setHapticFeedbackEnabled(settings().getBoolean("haptic", false));
         speedPercent = settings().getInt("speed", 100);
         PrimeShim.nativeSetSpeed(speedPercent);
         crosshair.setVisibility(settings().getBoolean("mouse", false)

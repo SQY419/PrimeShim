@@ -80,6 +80,13 @@ public final class L {
         EN.put("已导出 ", "Exported ");
         EN.put("导出失败：", "Export failed: ");
         EN.put("通用", "General");
+        EN.put("偏好设置", "Preferences");
+        EN.put("默认自动开启键盘", "Auto-open keyboard");
+        EN.put("启动应用时自动展开键盘", "Automatically show keyboard on launch");
+        EN.put("跳过开屏动画", "Skip splash screen");
+        EN.put("启动应用时直接进入计算器", "Directly open calculator on launch");
+        EN.put("按键震动反馈", "Haptic feedback");
+        EN.put("按键点击时触发震动反馈", "Vibrate on key press");
         EN.put("当前 ", "Current ");
         EN.put("调试", "Debug");
         EN.put("追踪与日志", "Tracing and logs");
@@ -259,6 +266,13 @@ public final class L {
         FR.put("已导出 ", "Exporté ");
         FR.put("导出失败：", "Échec de l’export : ");
         FR.put("通用", "Général");
+        FR.put("偏好设置", "Préférences");
+        FR.put("默认自动开启键盘", "Ouvrir le clavier automatiquement");
+        FR.put("启动应用时自动展开键盘", "Afficher automatiquement le clavier au lancement");
+        FR.put("跳过开屏动画", "Passer l'écran d'accueil");
+        FR.put("启动应用时直接进入计算器", "Accéder directement à la calculatrice au lancement");
+        FR.put("按键震动反馈", "Retour haptique");
+        FR.put("按键点击时触发震动反馈", "Vibrer lors de l'appui sur les touches");
         FR.put("当前 ", "Actuel ");
         FR.put("调试", "Débogage");
         FR.put("追踪与日志", "Traçage et journaux");
