@@ -235,13 +235,7 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        androidx.core.view.WindowInsetsControllerCompat bars =
-                androidx.core.view.WindowCompat.getInsetsController(getWindow(),
-                        getWindow().getDecorView());
-        bars.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars());
-        bars.setSystemBarsBehavior(
-                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        setupSystemBars();
 
         speedPercent = settings().getInt("speed", 100);
         traceEnabled = settings().getBoolean("trace", false);
@@ -263,6 +257,26 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         root.addView(surfaceView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            if (keyboardView == null || keyboardView.getVisibility() != View.VISIBLE) {
+                int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()
+                        | WindowInsetsCompat.Type.displayCutout()).top;
+                int navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+                FrameLayout.LayoutParams params =
+                        (FrameLayout.LayoutParams) surfaceView.getLayoutParams();
+                if (params != null) {
+                    params.topMargin = statusBar;
+                    params.bottomMargin = navBar;
+                    surfaceView.setLayoutParams(params);
+                }
+            }
+            for (int i = 0; i < root.getChildCount(); i++) {
+                View child = root.getChildAt(i);
+                ViewCompat.dispatchApplyWindowInsets(child, insets);
+            }
+            return insets;
+        });
 
         crosshair = new CrosshairView(this);
         crosshair.setVisibility(View.GONE);
@@ -351,9 +365,13 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         menuButton.addView(menuIcon, new FrameLayout.LayoutParams(
                 dp(24), dp(24), Gravity.CENTER));
 
+        int minInitialTop = getStatusBarInset() + dp(8);
+        int savedY = settings().getInt("menuY", -1);
+        int initialTopMargin = savedY >= minInitialTop ? savedY : minInitialTop;
+
         FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(
                 dp(40), dp(40), Gravity.TOP | Gravity.START);
-        menuParams.topMargin = settings().getInt("menuY", dp(8));
+        menuParams.topMargin = initialTopMargin;
         menuParams.leftMargin = settings().getInt("menuX", dp(8));
         root.addView(menuButton, menuParams);
         root.post(this::clampMenuPosition);
@@ -381,12 +399,14 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
                 return false;
             case MotionEvent.ACTION_MOVE:
                 if (!menuDragging) return false;
+                int minTop = getStatusBarInset() + dp(8);
+                int maxTop = root.getHeight() - getNavigationBarInset() - params.height - dp(8);
                 params.leftMargin = clamp(
                         menuDownLeft + Math.round(event.getRawX() - menuDownRawX),
-                        0, Math.max(0, root.getWidth() - params.width));
+                        dp(8), Math.max(dp(8), root.getWidth() - params.width - dp(8)));
                 params.topMargin = clamp(
                         menuDownTop + Math.round(event.getRawY() - menuDownRawY),
-                        0, Math.max(0, root.getHeight() - params.height));
+                        minTop, Math.max(minTop, maxTop));
                 view.setLayoutParams(params);
                 return true;
             case MotionEvent.ACTION_UP:
@@ -673,43 +693,135 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         return value < min ? min : (value > max ? max : value);
     }
 
+    private int getStatusBarInset() {
+        if (root != null) {
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root);
+            if (insets != null) {
+                int top = insets.getInsets(WindowInsetsCompat.Type.statusBars()
+                        | WindowInsetsCompat.Type.displayCutout()).top;
+                if (top > 0) return top;
+            }
+        }
+        int statusId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return statusId > 0 ? getResources().getDimensionPixelSize(statusId) : dp(24);
+    }
+
+    private int getNavigationBarInset() {
+        if (root != null) {
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root);
+            if (insets != null) {
+                int bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+                if (bottom > 0) return bottom;
+            }
+        }
+        int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        return navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+    }
+
     /** Keeps the draggable menu inside the window after a rotation or resize. */
     private void clampMenuPosition() {
         if (menuButton == null) return;
         FrameLayout.LayoutParams params =
                 (FrameLayout.LayoutParams) menuButton.getLayoutParams();
-        params.leftMargin = clamp(params.leftMargin, 0,
-                Math.max(0, root.getWidth() - params.width));
-        params.topMargin = clamp(params.topMargin, 0,
-                Math.max(0, root.getHeight() - params.height));
+        int minTop = getStatusBarInset() + dp(8);
+        int maxTop = root.getHeight() - getNavigationBarInset() - params.height - dp(8);
+        params.leftMargin = clamp(params.leftMargin, dp(8),
+                Math.max(dp(8), root.getWidth() - params.width - dp(8)));
+        params.topMargin = clamp(params.topMargin, minTop,
+                Math.max(minTop, maxTop));
         menuButton.setLayoutParams(params);
     }
 
-    /** Keeps a view clear of the display cutout (status bar is immersive). */
+    private void setupSystemBars() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        androidx.core.view.WindowInsetsControllerCompat controller =
+                androidx.core.view.WindowCompat.getInsetsController(getWindow(),
+                        getWindow().getDecorView());
+        controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+
+        boolean isDark = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        controller.setAppearanceLightStatusBars(!isDark);
+        controller.setAppearanceLightNavigationBars(!isDark);
+    }
+
+    /** Keeps a view clear of the status bar and display cutout. */
     private void offsetForCutout(final View view, final int baseTop) {
         ViewGroup.LayoutParams params = view.getLayoutParams();
         if (!(params instanceof ViewGroup.MarginLayoutParams)) {
             return;
         }
         final ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
-        ViewCompat.setOnApplyWindowInsetsListener(view, (v, insets) -> {
-            int top = insets.getInsets(WindowInsetsCompat.Type.displayCutout()).top;
+
+        androidx.core.view.OnApplyWindowInsetsListener listener = (v, insets) -> {
+            int top = insets.getInsets(WindowInsetsCompat.Type.statusBars()
+                    | WindowInsetsCompat.Type.displayCutout()).top;
             margins.topMargin = baseTop + top;
             v.setLayoutParams(margins);
             return insets;
+        };
+
+        ViewCompat.setOnApplyWindowInsetsListener(view, listener);
+
+        WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(root != null ? root : view);
+        if (rootInsets != null) {
+            listener.onApplyWindowInsets(view, rootInsets);
+        } else {
+            int statusId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+            int top = statusId > 0 ? getResources().getDimensionPixelSize(statusId) : dp(24);
+            margins.topMargin = baseTop + top;
+            view.setLayoutParams(margins);
+        }
+
+        view.post(() -> {
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root != null ? root : view);
+            if (insets != null) {
+                listener.onApplyWindowInsets(view, insets);
+            }
         });
         ViewCompat.requestApplyInsets(view);
     }
 
     private void padForCutout(final View view) {
-        final int left = view.getPaddingLeft();
-        final int top = view.getPaddingTop();
-        final int right = view.getPaddingRight();
-        final int bottom = view.getPaddingBottom();
-        ViewCompat.setOnApplyWindowInsetsListener(view, (v, insets) -> {
-            int cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout()).top;
-            v.setPadding(left, top + cutout, right, bottom);
+        final int baseLeft = view.getPaddingLeft();
+        final int baseTop = view.getPaddingTop();
+        final int baseRight = view.getPaddingRight();
+        final int baseBottom = view.getPaddingBottom();
+
+        androidx.core.view.OnApplyWindowInsetsListener listener = (v, insets) -> {
+            int topInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()
+                    | WindowInsetsCompat.Type.displayCutout()).top;
+            int bottomInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            v.setPadding(baseLeft, baseTop + topInset, baseRight, baseBottom + bottomInset);
             return insets;
+        };
+
+        ViewCompat.setOnApplyWindowInsetsListener(view, listener);
+
+        WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(root != null ? root : view);
+        if (rootInsets != null) {
+            listener.onApplyWindowInsets(view, rootInsets);
+        } else {
+            int statusId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+            int topInset = statusId > 0 ? getResources().getDimensionPixelSize(statusId) : dp(24);
+            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            int bottomInset = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+            view.setPadding(baseLeft, baseTop + topInset, baseRight, baseBottom + bottomInset);
+        }
+
+        view.post(() -> {
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(root != null ? root : view);
+            if (insets != null) {
+                listener.onApplyWindowInsets(view, insets);
+            }
         });
         ViewCompat.requestApplyInsets(view);
     }
@@ -829,10 +941,21 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         int screenWidth = metrics.widthPixels;
 
         int navBar = 0;
-        int navId = getResources().getIdentifier(
-                "navigation_bar_height", "dimen", "android");
-        if (navId > 0) navBar = getResources().getDimensionPixelSize(navId);
-        int available = screenHeight - navBar;
+        int statusBar = 0;
+        WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(root);
+        if (rootInsets != null) {
+            navBar = rootInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            statusBar = rootInsets.getInsets(WindowInsetsCompat.Type.statusBars()
+                    | WindowInsetsCompat.Type.displayCutout()).top;
+        } else {
+            int navId = getResources().getIdentifier(
+                    "navigation_bar_height", "dimen", "android");
+            if (navId > 0) navBar = getResources().getDimensionPixelSize(navId);
+            int statusId = getResources().getIdentifier(
+                    "status_bar_height", "dimen", "android");
+            if (statusId > 0) statusBar = getResources().getDimensionPixelSize(statusId);
+        }
+        int available = screenHeight - navBar - statusBar;
 
         /* Keep the calculator and keyboard as one centred column.  On a
          * tablet, filling the full width makes every key enormous and leaves
@@ -872,7 +995,8 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
                 : FrameLayout.LayoutParams.MATCH_PARENT;
         params.height = show ? displayHeight
                 : FrameLayout.LayoutParams.MATCH_PARENT;
-        params.topMargin = show ? topMargin : 0;
+        params.topMargin = show ? statusBar + topMargin : statusBar;
+        params.bottomMargin = show ? 0 : navBar;
         surfaceView.setLayoutParams(params);
 
         if (show) keyboardView.bringToFront();
@@ -2085,6 +2209,10 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         root.addView(pageView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+        WindowInsetsCompat rootInsets = ViewCompat.getRootWindowInsets(root);
+        if (rootInsets != null) {
+            ViewCompat.dispatchApplyWindowInsets(pageView, rootInsets);
+        }
         if (!pageStack.isEmpty()) {
             LinearLayout below = pageStack.get(pageStack.size() - 1);
             below.animate().cancel();
